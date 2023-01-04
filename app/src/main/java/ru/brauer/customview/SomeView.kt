@@ -6,12 +6,10 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Paint.ANTI_ALIAS_FLAG
-import android.graphics.Point
 import android.graphics.PointF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
-import kotlin.math.absoluteValue
 
 class SomeView @JvmOverloads constructor(
     context: Context,
@@ -19,7 +17,7 @@ class SomeView @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    private var startMovePoint: PointF? = null
+    private var lastMovePoint: PointF? = null
     private val offsetMove: PointF = PointF(0f, 0f)
 
     private var paintLine: Paint = Paint(ANTI_ALIAS_FLAG).apply {
@@ -64,9 +62,9 @@ class SomeView @JvmOverloads constructor(
         val spaceH = heightF / countOfLines
         val spaceW = widthF / countOfLines
         repeat(countOfLines) {
-            val yPos = spaceH * it + (offsetMove.y % spaceH)
+            val yPos = spaceH * it + offsetMove.y
             canvas?.drawLine(0f, yPos, widthF, yPos, paintLine)
-            val xPos = spaceW * it + (offsetMove.x % spaceW)
+            val xPos = spaceW * it + offsetMove.x
             canvas?.drawLine(xPos, 0f, xPos, heightF, paintLine)
         }
     }
@@ -128,39 +126,17 @@ class SomeView @JvmOverloads constructor(
     private fun processMove(event: MotionEvent): Boolean =
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                startMovePoint = PointF(event.x, event.y)
+                lastMovePoint = PointF(event.x, event.y)
                 true
             }
             MotionEvent.ACTION_UP -> {
-                startMovePoint = null
+                lastMovePoint = null
                 true
             }
             MotionEvent.ACTION_MOVE -> {
-                startMovePoint?.let {
-                    val offsetX = offsetMove.x
-                        .plus(event.x)
-                        .minus(it.x)
-                        .let {
-                            if (it < 0) {
-                                width - (it % width)
-                            } else if (it > width) {
-                                it % width
-                            } else {
-                                it
-                            }
-                        }
-                    val offsetY = offsetMove.y
-                        .plus(event.y)
-                        .minus(it.y)
-                        .let {
-                            if (it < 0) {
-                                height - (it % height)
-                            } else if (it > height) {
-                                it % height
-                            } else {
-                                it
-                            }
-                        }
+                lastMovePoint?.let {
+                    val offsetX =  getNewOffset(offsetMove.x, event.x, it.x, width / countOfLines)
+                    val offsetY = getNewOffset(offsetMove.y, event.y, it.y, height / countOfLines)
                     offsetMove.set(offsetX, offsetY)
                     it.set(event.x, event.y)
                     invalidate()
@@ -169,6 +145,22 @@ class SomeView @JvmOverloads constructor(
             }
             else -> false
         }.also { println("XXX offset ${offsetMove.x} ${offsetMove.y} $event") }
+
+    companion object {
+        private fun getNewOffset(currentOffset: Float, newCoordinate: Float, oldCoordinate: Float, measure: Int): Float =
+            currentOffset
+                .plus(newCoordinate)
+                .minus(oldCoordinate)
+                .let {
+                    if (it < 0) {
+                        measure - (it % measure)
+                    } else if (it > measure) {
+                        it % measure
+                    } else {
+                        it
+                    }
+                }
+    }
 }
 
 val Int.dp: Int get() = times(Resources.getSystem().displayMetrics.density).toInt()
